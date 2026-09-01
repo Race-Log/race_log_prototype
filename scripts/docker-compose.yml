@@ -46,8 +46,6 @@ services:
   web:
     build:
       context: ../web
-      args:
-        VITE_API_URL: http://localhost:8000
     depends_on:
       - back
     ports:
