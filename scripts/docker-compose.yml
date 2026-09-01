@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: race_log
+      POSTGRES_USER: race_user
+      POSTGRES_PASSWORD: race_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db:
+    build:
+      context: ../db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/race_log
+      FLYWAY_USER: race_user
+      FLYWAY_PASSWORD: race_password
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    command: ["-connectRetries=60", "migrate"]
+
+  back:
+    build:
+      context: ../back
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://race_user:race_password@postgres:5432/race_log
+      JWT_SECRET: super-secret-key
+      CORS_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ../web
+      args:
+        VITE_API_URL: http://localhost:8000
+    depends_on:
+      - back
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
